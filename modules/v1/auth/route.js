@@ -2,12 +2,11 @@
 const express = require('express');
 const authController = require('./auth_model'); // Import the authentication logic
 const router = express.Router();
-
-// Signup route
+router.post('/getinsititue', authController.getinstitute);
+router.post('/getboards', authController.getborads_details);
+router.post('/getmediumdetails', authController.getmediumdetails);
+router.post('/getcategoryetails', authController.getcategoryetails);
+router.post('/getstddetails', authController.getstddetails);
 router.post('/signup', authController.signup);
-router.post('/otpverify', authController.verifyOTP);
-router.post('/login', authController.login);
-router.post('/resend_otp', authController.resendOTP);
-
 
 module.exports = router;

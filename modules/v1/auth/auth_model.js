@@ -4,173 +4,143 @@ const db = require('../../../config/db');
 const { sendEmail, validateApiKey } = require('../../../config/common'); // Adjust the path if necessary
 const crypto = require('crypto'); // Import crypto for generating tokens
 
-// Generate a random token
-const generateToken = () => {
-  return crypto.randomBytes(16).toString('hex'); // Generates a random 32-character token
-};
-
-// Signup admin and user 
-const signup = (req, res) => {
-  const request = req.body;
-
-  // Check if user already exists
-  db.query('SELECT * FROM tbl_user WHERE email = ?', [request.email], (error, results) => {
+// const generateToken = () => {
+//   return crypto.randomBytes(16).toString('hex'); // Generates a random 32-character token
+// };
+//for Get institute 
+const getinstitute = (req, res) => {
+  db.query('SELECT id,institute_name FROM tbl_institute_type where is_deleted=0', (error, results) => {
+    // console.log(this.sql)
     if (error) {
       return res.status(500).json({ message: 'Database query error.' });
+    } else {
+      res.status(200).json({
+        message: 'Success',
+        data: [{ results }]
+      });
     }
-
-    if (results.length > 0) {
-      return res.status(400).json({ message: 'User already exists.' });
-    }
-
-    // Hash the password
-    bcrypt.hash(request.password, 10, (error, hashedPassword) => {
-      if (error) {
-        return res.status(500).json({ message: 'Error hashing password.' });
-      }
-
-      const otp = 1234; 
-      db.query('INSERT INTO tbl_user (first_name, last_name, email, password, role, otp) VALUES (?, ?, ?, ?, ?, ?)',
-        [request.first_name, request.last_name, request.email, hashedPassword, request.role, otp],
-        (error, results) => {
-          if (error) {
-            return res.status(500).json({ message: 'Database insert error.', data: null });
-          }
-          db.query('INSERT INTO tbl_user_device (user_id, token) VALUES (?, ?)', [results.insertId, ''], (error) => {
-            if (error) {
-              return res.status(500).json({ message: 'Error inserting token into tbl_user_device.' });
-            }
-          });
-          sendEmail(request.email, 'Verify email', 'Your One-Time Password (OTP) for verification is: ' + otp);
-
-          res.status(200).json({
-            message: 'User registered successfully!',
-            data: [{ id: results.insertId }] 
-          });
-        });
-    });
   });
 };
-
-// Login function
-const login = (req, res) => {
+//for Get borad ,college and competivie exam details 
+const getborads_details = (req, res) => {
+  var request = req.body
+  db.query('SELECT id,institute_type_id,name,description FROM tbl_borads where institute_type_id=' + request.type_id + '', (error, results) => {
+    // console.log(error)
+    if (error) {
+      return res.status(500).json({ message: 'Database query error.' });
+    } else {
+      res.status(200).json({
+        message: 'Success',
+        data: [{ results }]
+      });
+    }
+  });
+};
+//for getting medium langauge
+const getmediumdetails = (req, res) => {
+  var request = req.body
+  db.query('SELECT id,borad_id,name FROM tbl_medium where borad_id=' + request.borad_id + '', (error, results) => {
+    if (error) {
+      return res.status(500).json({ message: 'Database query error.' });
+    } else {
+      res.status(200).json({
+        message: 'Success',
+        data: [{ results }]
+      });
+    }
+  });
+};
+//get board category details
+const getcategoryetails = (req, res) => {
+  var request = req.body
+  db.query('SELECT id,medium_id,name FROM tbl_class_category where medium_id=' + request.medium_id + '', (error, results) => {
+    if (error) {
+      return res.status(500).json({ message: 'Database query error.' });
+    } else {
+      res.status(200).json({
+        message: 'Success',
+        data: [{ results }]
+      });
+    }
+  });
+};
+//get std and subject detials
+const getstddetails = (req, res) => {
   const request = req.body;
-
-  if (!request.email || !request.password) {
-    return res.status(400).json({ message: 'Email and password are required.' });
-  }
-  // Check if user exists
-  db.query('SELECT * FROM tbl_user WHERE email = ?', [request.email], (error, results) => {
+  db.query('SELECT id , std FROM tbl_std WHERE class_category_id = ?', [request.class_category_id], (error, standards) => {
     if (error) {
       return res.status(500).json({ message: 'Database query error.' });
     }
-    
-    if (results.length === 0) {
-      return res.status(401).json({ message: 'Invalid email or password.' });
-    }
-    if(request.role!=results[0].role)
-{
-  return res.status(401).json({ message: 'you`re not allowed to login form here' });
-
-}
-    const user = results[0];
-    if (user.verify_status === 'unverified') {
-      return res.status(200).json({ code:4 ,message: 'Your account is not verified.', data: user.id });
-    }
-    bcrypt.compare(request.password, user.password, (err, isMatch) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error comparing passwords.' });
-      }
-
-      if (!isMatch) {
-        return res.status(401).json({ message: 'Invalid email or password.' });
-      }
-
-      const newToken = generateToken();
-
-      // Update the token in tbl_user_device
-      db.query('UPDATE tbl_user_device SET token = ? WHERE user_id = ?', [newToken, user.id], (error) => {
+    async.map(standards, (standard, callback) => {
+      db.query('SELECT id ,name FROM tbl_subject WHERE std_id = ?', [standard.id], (error, subjects) => {
         if (error) {
-          return res.status(500).json({ message: 'Error updating token in tbl_user_device.' });
+          return callback(error);
         }
+        const standardWithSubjects = {
+          standard,
+          subjects: subjects
+        };
+        callback(null, standardWithSubjects);
+      });
+    }, (error, standardsWithSubjects) => {
+      if (error) {
+        return res.status(500).json({ message: 'Error fetching subjects for standards.' });
+      }
 
-        return res.status(200).json({code:1,
-          message: 'Login successful.',
-          data: [{ id: user.id, token: newToken }]
-        });
+      res.status(200).json({
+        message: 'Success',
+        data: standardsWithSubjects
       });
     });
   });
 };
-
-// Function to verify OTP
-const verifyOTP = (req, res) => {
+const async = require('async'); // Make sure to include the async module if not already imported
+//signup user
+const signup = (req, res) => {
   const request = req.body;
 
-  if (!request.id || !request.otp) {
-    return res.status(400).json({code:0, message: 'User ID and OTP are required.',data:null });
-  }
+  db.query('INSERT INTO tbl_signup (institute_type_id, borads_id, medium_id) VALUES (?, ?, ?)',
+    [request.institute_type_id, request.borads_id, request.medium_id],
+    (error, results) => {
 
-  db.query('SELECT * FROM tbl_user WHERE id = ?', [request.id], (error, result) => {
-    if (error) {
-      return res.status(500).json({code:0, message: 'Database query error.' ,data:null });
-    }
-
-    if (result.length === 0) {
-      return res.status(404).json({ code:0,message: 'User not found.',data:null });
-    }
-
-    const user = result[0];
-    if (user.otp != request.otp) {
-      return res.status(400).json({ code:0 ,message: 'Invalid OTP. Please try again.' ,data:null });
-    }
-
-    // If OTP is valid, update the user status
-    db.query("UPDATE tbl_user SET ? WHERE id = ?", [{ verify_status: 'verified', otp: '' }, request.id], (updateError) => {
-      if (updateError) {
-        return res.status(500).json(updateError);
-      } else {
-        res.status(200).json({code:1, message: 'OTP verified successfully!',data:{'role':user.role} });
-      }
-    });
-  });
-};
-//resend otp
-const resendOTP = (req, res) => {
-  const request= req.body;
-
-  db.query('SELECT * FROM tbl_user WHERE id = ?', [request.id], (error, results) => {
-    if (error) {
-      return res.status(500).json({ code:0,message: 'Database query error.',data:null });
-    }
-
-    if (results.length === 0) {
-      return res.status(400).json({code:0, message: 'User does not exist.',data:null });
-    }
-    const user = results[0];
-    const otp = '1234';
-
-    db.query('UPDATE tbl_user SET otp = ? WHERE id = ?', [otp, user.id], (error) => {
       if (error) {
-        return res.status(500).json({code:0, message: 'Error updating OTP in database.',data:null });
+        return res.status(500).json({ message: 'Database insert error.', data: null });
+      }
+      else {
+
+        async.map(request.subject, (subject, callback) => {
+          console.log('Inserting subject:',subject);
+
+          db.query('INSERT INTO tbl_signup_subject (user_id, sub_id) VALUES (?, ?)',
+            [results.insertId, subject.subject_id],
+            (suberr, subres) => {
+              if (suberr) {
+                return callback(suberr);
+              }
+              callback(null, subres); 
+            });
+        }, (suberr, subres) => {
+          if (suberr) {
+            return res.status(500).json({ message: 'Error inserting subjects.', data: null });
+          }
+
+          res.status(200).json({
+            message: 'Signup successful and subjects inserted successfully.',
+            data: { user_id: results.insertId }  
+          });
+        });
       }
 
-      // Send the new OTP via email
-      sendEmail(user.email, 'Your OTP', `Your new One-Time Password (OTP) is: ${otp}`)
-        .then(() => {
-          res.status(200).json({ code:1,message: 'OTP has been resent successfully!',data:user });
-        })
-        .catch((error) => {
-          console.error('Error sending email:', error);
-          res.status(500).json({code:0, message: 'Error sending OTP email.' ,data:null });
-        });
     });
-  });
 };
+
+
 
 module.exports = {
-  verifyOTP,
-  signup,
-  login,
-  resendOTP
+  getinstitute,
+  getborads_details,
+  getmediumdetails,
+  getcategoryetails,
+  getstddetails,
+  signup
 };
